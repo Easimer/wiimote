@@ -6,6 +6,10 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int wiimote_init();
 int wiimote_shutdown();
 
@@ -33,3 +37,7 @@ int wiimote_send(HWIIMOTE hDev, void const *data, size_t length);
 // Returns the length of the received packet, zero if no packet was
 // received since the last call or -1 on error.
 int wiimote_recv(HWIIMOTE hDev, void       *data, size_t length);
+
+#ifdef __cplusplus
+}
+#endif

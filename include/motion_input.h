@@ -2,6 +2,10 @@
 
 #include "wiimote_hw.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct motion_input_config {
     int flags;
 } motion_input_config_t;
@@ -47,3 +51,7 @@ typedef struct motion_event {
 int motion_poll(motion_event_t *ev);
 
 void motion_set_leds(int iPlayer, unsigned mask);
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,0 +1,24 @@
+GLAD_PATH=$(realpath ./)
+IMGUI_PATH=$(realpath imgui/)
+SDL2_PATH=/usr/include/SDL2/
+CXXFLAGS=-I $(GLAD_PATH) \
+		 -I $(IMGUI_PATH) \
+		 -I $(SDL2_PATH) \
+		 -D IMGUI_IMPL_OPENGL_LOADER_GLAD \
+		 -O2
+
+OBJECTS=imgui/imgui.o \
+		imgui/imgui_draw.o \
+		imgui/imgui_widgets.o \
+		imgui/backends/imgui_impl_sdl.o \
+		imgui/backends/imgui_impl_opengl3.o
+
+all: imgui.a
+
+imgui.a: $(OBJECTS)
+	$(AR) rcs imgui.a $(OBJECTS)
+
+clean:
+	rm -f $(OBJECTS) imgui.a
+
+.PHONY: clean
