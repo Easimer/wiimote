@@ -89,10 +89,17 @@ static void destroy_window(wnd_t *wnd) {
     SDL_Quit();
 }
 
+#define PAST_DATA_COUNT (1024)
+
 typedef struct input_state {
     bool buttons[(int)MB_MAX];
 
     float acc[3];
+
+    float old_x[PAST_DATA_COUNT];
+    float old_y[PAST_DATA_COUNT];
+    float old_z[PAST_DATA_COUNT];
+    int old_i;
 } input_state_t;
 
 static int display_input_state(input_state_t *state) {
@@ -103,6 +110,10 @@ static int display_input_state(input_state_t *state) {
     }
 
     ImGui::InputFloat3("Acc.", state->acc);
+
+    ImGui::PlotLines("Accel. X", state->old_x, PAST_DATA_COUNT);
+    ImGui::PlotLines("Accel. Y", state->old_y, PAST_DATA_COUNT);
+    ImGui::PlotLines("Accel. Z", state->old_z, PAST_DATA_COUNT);
     return 0;
 }
 
@@ -113,6 +124,11 @@ static void mutate(input_state_t *state, motion_event_t const &ev) {
         state->acc[0] = ev.accel.x;
         state->acc[1] = ev.accel.y;
         state->acc[2] = ev.accel.z;
+
+        state->old_x[state->old_i] = ev.accel.x;
+        state->old_y[state->old_i] = ev.accel.y;
+        state->old_z[state->old_i] = ev.accel.z;
+        state->old_i = (state->old_i + 1) % PAST_DATA_COUNT;
     }
 }
 
@@ -120,6 +136,8 @@ int main(int argc, char **argv) {
     wnd_t wnd;
     motion_input_config_t cfg;
     input_state_t inp;
+
+    memset(&inp, 0, sizeof(inp));
 
     if(!open_window(&wnd)) {
         printf("open_window() failed\n");
