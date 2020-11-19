@@ -176,4 +176,45 @@ struct pkt_report_buttons_only {
     buttons_t btn;
 };
 
+typedef struct motionplus_data {
+    uint8_t yaw_down_speed_lo;
+    uint8_t roll_left_speed_lo;
+    uint8_t pitch_left_speed_lo;
+
+    uint8_t pitch_slow_mode : 1;
+    uint8_t yaw_slow_mode : 1;
+    uint8_t yaw_down_speed_hi : 6;
+
+    uint8_t ext_connected : 1;
+    uint8_t roll_slow_mode : 1;
+    uint8_t roll_left_speed_hi: 6;
+
+    uint8_t zero : 1;
+    uint8_t one : 1;
+    uint8_t pitch_left_speed_hi : 6;
+} motionplus_data_t;
+
+typedef struct calibration_data {
+    uint8_t x_0g_hi;
+    uint8_t y_0g_hi;
+    uint8_t z_0g_hi;
+
+    uint8_t z_0g_lo : 2;
+    uint8_t y_0g_lo : 2;
+    uint8_t x_0g_lo : 2;
+    uint8_t zero0 : 2;
+
+    uint8_t x_1g_hi;
+    uint8_t y_1g_hi;
+    uint8_t z_1g_hi;
+
+    uint8_t z_1g_lo : 2;
+    uint8_t y_1g_lo : 2;
+    uint8_t x_1g_lo : 2;
+    uint8_t zero1 : 2;
+
+    uint8_t unused;
+    uint8_t checksum;
+} calibration_data_t;
+
 #pragma pack(pop)

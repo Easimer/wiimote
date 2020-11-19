@@ -79,6 +79,7 @@ struct motion_device {
 
     int accel_changed;
     accel_data_f32_t accel;
+    accel_data_f32_t calib_center, calib_unit;
 };
 
 static struct motion_device *gDevices = NULL;
@@ -108,6 +109,16 @@ static void send_led_output_report(HWIIMOTE hDev, uint8_t led_ctl) {
     wiimote_send(hDev, &pkt, sizeof(pkt));
 }
 
+static void read_memory(
+        struct motion_device *dev,
+        uint8_t address_space,
+        uint32_t address,
+        uint32_t size) {
+    struct pkt_memory_read pkt;
+    init_memory_read(&pkt, address_space, address, size);
+    wiimote_send(dev->hDevice, &pkt, sizeof(pkt));
+}
+
 static void write_memory(
         struct motion_device *dev,
         uint8_t address_space,
@@ -124,7 +135,6 @@ static void write_memory(
     char *cur_data = data;
     while(remains >= 16) {
         uint32_t addr = cur;
-        printf("HtoD memcpy space=%u addr=0x%x size=16\n", address_space, addr);
         pkt.off_lo = addr & 0xFF;
         addr >>= 8;
         pkt.off_mi = addr & 0xFF;
@@ -142,7 +152,6 @@ static void write_memory(
 
     if(remains > 0) {
         uint32_t addr = cur;
-        printf("HtoD memcpy space=%u addr=0x%x size=%d\n", address_space, addr, remains);
         pkt.off_lo = addr & 0xFF;
         addr >>= 8;
         pkt.off_mi = addr & 0xFF;
@@ -212,10 +221,41 @@ static void process_extension_signature(struct motion_device *dev, void const *s
     }
 }
 
+static void process_calibration_data(struct motion_device *dev, void *data) {
+    calibration_data_t* c = (calibration_data_t*)data;
+
+    uint32_t x_0g = ((uint32_t)c->x_0g_hi << 2);
+    uint32_t y_0g = ((uint32_t)c->y_0g_hi << 2);
+    uint32_t z_0g = ((uint32_t)c->z_0g_hi << 2);
+
+    x_0g |= c->x_0g_lo;
+    y_0g |= c->y_0g_lo;
+    z_0g |= c->z_0g_lo;
+
+    uint32_t x_1g = ((uint32_t)c->x_1g_hi << 2);
+    uint32_t y_1g = ((uint32_t)c->y_1g_hi << 2);
+    uint32_t z_1g = ((uint32_t)c->z_1g_hi << 2);
+
+    x_1g |= c->x_0g_lo;
+    y_1g |= c->y_0g_lo;
+    z_1g |= c->z_0g_lo;
+
+    dev->calib_center.x = (float)x_0g;
+    dev->calib_center.y = (float)y_0g;
+    dev->calib_center.z = (float)z_0g;
+
+    dev->calib_unit.x   = (float)x_1g;
+    dev->calib_unit.y   = (float)y_1g;
+    dev->calib_unit.z   = (float)z_1g;
+}
+
 static void on_memory_read_results(struct motion_device *dev, struct wiimote_header *hdr) {
     struct pkt_memory_read_response* res = (struct pkt_memory_read_response*)hdr;
     if(res->off_mi == 0x00 && res->off_lo == 0xFA && dev->ext_status < EXT_STATUS_FOUND) {
         process_extension_signature(dev, res->data);
+    } else if(res->off_mi == 0x00 && res->off_lo == 0x16) {
+        // Incoming calibration data
+        process_calibration_data(dev, res->data);
     }
 }
 
@@ -225,7 +265,6 @@ static void put_button_event(
         int released) {
     motion_button_press_t ev = { btn, released };
     put_btn_press_ring(&dev->btn_press_ring, &ev);
-    printf("button ev: key:%d released:%d\n", btn, released);
 }
 
 static void process_core_buttons(
@@ -273,9 +312,9 @@ static void process_normal_accel_data(
     y32 |= (rep->accel.y2 << 1);
     z32 |= (rep->accel.z2 << 1);
 
-    dev->accel.x = ((int)x32 - 512) / 512.0f * 3;
-    dev->accel.y = ((int)y32 - 512) / 512.0f * 3;
-    dev->accel.z = ((int)z32 - 512) / 512.0f * 3;
+    dev->accel.x = ((float)x32 - dev->calib_center.x) / dev->calib_unit.x;
+    dev->accel.y = ((float)y32 - dev->calib_center.y) / dev->calib_unit.y;
+    dev->accel.z = ((float)z32 - dev->calib_center.z) / dev->calib_unit.z;
 }
 
 static void handle_input_report(
@@ -338,7 +377,12 @@ static int detect_extension(struct motion_device *dev) {
         poll_device(dev);
     }
 
-    if(dev->ext_kind == EXT_KIND_ACTIVE_MOTION_PLUS) {
+    if(dev->ext_kind == EXT_KIND_ACTIVE_MOTION_PLUS ||
+            dev->ext_kind == EXT_KIND_INACTIVE_MOTION_PLUS) {
+        uint8_t b0 = 0x55;
+        write_memory(dev, WIIM_ADDRSPACE_CTLREG, 0xA600F0, &b0, 1);
+        sleep_millis(100);
+
         uint8_t b1 = 0x04;
         write_memory(dev, WIIM_ADDRSPACE_CTLREG, 0xA600F0, &b1, 1);
         sleep_millis(100);
@@ -346,22 +390,11 @@ static int detect_extension(struct motion_device *dev) {
         set_report_mode(dev, 0, dev->current_reporting_mode);
     }
 
-    if(dev->ext_kind == EXT_KIND_INACTIVE_MOTION_PLUS) {
-        uint8_t b0 = 0x55;
-        write_memory(dev, WIIM_ADDRSPACE_CTLREG, 0xA600F0, &b0, 1);
-        sleep_millis(100);
-
-        detect_extension(dev);
-    }
-
     return 0;
 }
 
 static void read_accelerometer_calibration_data(struct motion_device *dev) {
-    struct pkt_memory_read pkt;
-    init_memory_read(&pkt, WIIM_ADDRSPACE_EEPROM, 0x000016, 10);
-    wiimote_send(dev->hDevice, &pkt, sizeof(pkt));
-    // TODO: this info is ignored rn
+    read_memory(dev, WIIM_ADDRSPACE_EEPROM, 0x00000016, 10);
 }
 
 static void init_devices() {
