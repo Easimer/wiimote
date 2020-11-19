@@ -24,7 +24,7 @@ wm: $(OBJECTS) $(LIBGLAD) $(LIBWIIMOTE) $(LIBIMGUI)
 glad/glad.a:
 	CFLAGS="$(CFLAGS)" $(MAKE) -C glad
 
-wiimote/wiimote.a:
+wiimote/wiimote.a: wiimote/motion_input.c wiimote/wiimote_hw.c
 	CFLAGS="$(CFLAGS)" $(MAKE) -C wiimote
 
 imgui.a:

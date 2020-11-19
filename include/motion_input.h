@@ -18,11 +18,12 @@ typedef enum motion_event_kind {
     MI_EV_CONNECTED,
     MI_EV_DISCONNECTED,
     MI_EV_BUTTON,
+    MI_EV_ACCEL,
     MI_EV_MAX
 } motion_event_kind_t;
 
 typedef enum motion_button {
-    MB_LEFT,
+    MB_LEFT = 0,
     MB_RIGHT,
     MB_DOWN,
     MB_UP,
@@ -33,6 +34,7 @@ typedef enum motion_button {
     MB_A,
     MB_MINUS,
     MB_HOME,
+    MB_MAX
 } motion_button_t;
 
 typedef struct motion_button_press {
@@ -40,11 +42,16 @@ typedef struct motion_button_press {
     int released;
 } motion_button_press_t;
 
+typedef struct motion_accel {
+    float x, y, z;
+} motion_accel_t;
+
 typedef struct motion_event {
     motion_event_kind_t kind;
 
     union {
         motion_button_press_t btn;
+        motion_accel_t accel;
     };
 } motion_event_t;
 

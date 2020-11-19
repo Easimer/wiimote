@@ -89,9 +89,37 @@ static void destroy_window(wnd_t *wnd) {
     SDL_Quit();
 }
 
+typedef struct input_state {
+    bool buttons[(int)MB_MAX];
+
+    float acc[3];
+} input_state_t;
+
+static int display_input_state(input_state_t *state) {
+    for(int i = 0; i < MB_MAX; i++) {
+        char buf[32];
+        snprintf(buf, 31, "%d", i);
+        ImGui::Checkbox(buf, &state->buttons[i]);
+    }
+
+    ImGui::InputFloat3("Acc.", state->acc);
+    return 0;
+}
+
+static void mutate(input_state_t *state, motion_event_t const &ev) {
+    if(ev.kind == MI_EV_BUTTON) {
+        state->buttons[(int)ev.btn.btn] = ev.btn.released ? false : true;
+    } else if(ev.kind == MI_EV_ACCEL) {
+        state->acc[0] = ev.accel.x;
+        state->acc[1] = ev.accel.y;
+        state->acc[2] = ev.accel.z;
+    }
+}
+
 int main(int argc, char **argv) {
     wnd_t wnd;
     motion_input_config_t cfg;
+    input_state_t inp;
 
     if(!open_window(&wnd)) {
         printf("open_window() failed\n");
@@ -108,7 +136,31 @@ int main(int argc, char **argv) {
 
     while(!bExit) {
         motion_event_t ev;
-        motion_poll(&ev);
+        int already_have_accel = 0;
+        int cancel_motion_poll = 0;
+        while(motion_poll(&ev) && !cancel_motion_poll) {
+            switch(ev.kind) {
+                case MI_EV_BUTTON:
+                {
+                    mutate(&inp, ev);
+                    break;
+                }
+                case MI_EV_ACCEL:
+                {
+                    if(!already_have_accel) {
+                        mutate(&inp, ev);
+                        already_have_accel = 1;
+                    } else {
+                        cancel_motion_poll = 1;
+                    }
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+            }
+        }
 
         SDL_Event sev;
         while(SDL_PollEvent(&sev)) {
@@ -125,6 +177,9 @@ int main(int argc, char **argv) {
         ImGui_ImplSDL2_NewFrame(wnd.hWindow);
         ImGui::NewFrame();
 
+        if(display_input_state(&inp) != 0) {
+            bExit = true;
+        }
 
         ImGui::Render();
         glViewport(0, 0, (int)io.DisplaySize.x, (int)io.DisplaySize.y);

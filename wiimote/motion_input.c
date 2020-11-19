@@ -269,16 +269,13 @@ static void process_normal_accel_data(
     uint32_t y32 = ((uint32_t)rep->accel.y) << 2;
     uint32_t z32 = ((uint32_t)rep->accel.z) << 2;
 
-    printf("accel raw (%u, %u, %u) ", x32, y32, z32);
-
     x32 |= (rep->accel.x2 << 0);
     y32 |= (rep->accel.y2 << 1);
     z32 |= (rep->accel.z2 << 1);
 
-    printf("with-extra (%u, %u, %u) ", x32, y32, z32);
-
-
-    printf("\n");
+    dev->accel.x = ((int)x32 - 512) / 512.0f * 3;
+    dev->accel.y = ((int)y32 - 512) / 512.0f * 3;
+    dev->accel.z = ((int)z32 - 512) / 512.0f * 3;
 }
 
 static void handle_input_report(
@@ -437,7 +434,6 @@ int motion_poll(motion_event_t *ev) {
     char buffer[128];
     int rd;
 
-    ev->kind = MI_EV_NONE;
     struct motion_device *cur = gDevices;
     while(cur != NULL) {
         rd = wiimote_recv(cur->hDevice, buffer, 128);
@@ -447,11 +443,31 @@ int motion_poll(motion_event_t *ev) {
             handle_input_report(cur, buffer, rd);
         }
 
+        cur = cur->next;
+    }
 
+
+    ev->kind = MI_EV_NONE;
+    cur = gDevices;
+    while(cur != NULL) {
         motion_button_press_t mb;
         if(get_btn_press_ring(&cur->btn_press_ring, &mb)) {
             ev->kind = MI_EV_BUTTON;
             ev->btn = mb;
+            return 1;
+        }
+
+        cur = cur->next;
+    }
+
+    cur = gDevices;
+    while(cur != NULL) {
+        if(cur->accel_changed) {
+            ev->kind = MI_EV_ACCEL;
+            ev->accel.x = cur->accel.x;
+            ev->accel.y = cur->accel.y;
+            ev->accel.z = cur->accel.z;
+            return 1;
         }
 
         cur = cur->next;
