@@ -1,3 +1,7 @@
+//
+// Wiimote communication abstraction layer, POSIX implementation
+//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -24,16 +28,19 @@ typedef struct wiimote_device {
     bdaddr_t addr;
 } wiimote_device;
 
+// Determines whether a given Bluetooth device is a Wiiimote
 static int is_wiimote(bdaddr_t const* addr) {
     sdp_list_t *response_list = NULL, *search_list, *attrid_list;
     sdp_session_t *session = 0;
     int err;
 
+    // Check OUI; address bytes are in reverse order
     if(addr->b[5] != 0xD8 || addr->b[4] != 0x6B || addr->b[3] != 0xF7) {
         printf("wiimote_hw: device not a wiimote: address\n");
         return 0;
     }
 
+    // Connect to the SDP service
     session = sdp_connect(BDADDR_ANY, addr, SDP_RETRY_IF_BUSY);
     if(session == NULL) {
         printf("wiimote_hw: device not a wiimote: failed to open SDP session\n");
@@ -53,6 +60,7 @@ static int is_wiimote(bdaddr_t const* addr) {
 
     search_list = sdp_list_append(NULL, &svc_did);
 
+    // Request vendor ID and product ID info from SDP
     err = sdp_service_search_attr_req(session, search_list, SDP_ATTR_REQ_RANGE, attrid_list, &response_list);
 
     if(err != 0) {

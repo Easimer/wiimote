@@ -1,3 +1,7 @@
+//
+// Enums, constants and structs related to the Wiimote protocol
+//
+
 #pragma once
 
 #include <stdint.h>
